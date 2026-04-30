@@ -11,6 +11,7 @@
 #include <mrs_lib/publisher_handler.h>
 #include <mrs_lib/timer_handler.h>
 #include <mrs_lib/service_server_handler.h>
+#include <mrs_lib/errorgraph/error_publisher.h>
 
 #include <mrs_uav_hw_api/api.h>
 #include <mrs_uav_hw_api/publishers.h>
@@ -68,6 +69,8 @@ private:
   rclcpp::CallbackGroup::SharedPtr cbkgrp_subs_;
   rclcpp::CallbackGroup::SharedPtr cbkgrp_ss_;
   rclcpp::CallbackGroup::SharedPtr cbkgrp_timers_;
+
+  std::unique_ptr<mrs_lib::errorgraph::ErrorPublisher> error_publisher_;
 
   void initialize();
   void shutdown();
@@ -236,6 +239,8 @@ void HwApiManager::initialize() {
 
   rclcpp::on_shutdown([this]() { this->shutdown(); });
 
+  error_publisher_ = std::make_unique<mrs_lib::errorgraph::ErrorPublisher>(node_, clock_, "HwApiManager", "main");
+
   // | ----------------------- load params ---------------------- |
 
   param_loader_ = std::make_shared<mrs_lib::ParamLoader>(node_);
@@ -253,7 +258,9 @@ void HwApiManager::initialize() {
   if (_version_ != VERSION) {
 
     RCLCPP_ERROR(node_->get_logger(), "the version of the binary (%s) does not match the config file (%s), please build me!", VERSION, _version_.c_str());
-    rclcpp::shutdown();
+    error_publisher_->addOneshotError("Version mismatch, see the error message for details: the version of the binary (" + std::string(VERSION) +
+                                      ") does not match the config file (" + _version_ + ")");
+    error_publisher_->flushAndShutdown();
   }
 
   param_loader_->loadParam("hw_interface_plugin", _plugin_address_);
@@ -284,7 +291,8 @@ void HwApiManager::initialize() {
 
   if (!param_loader_->loadedSuccessfully()) {
     RCLCPP_ERROR(node_->get_logger(), "could not load all parameters!");
-    rclcpp::shutdown();
+    error_publisher_->addOneshotError("Parameter loading failed, see the error message for details: could not load all parameters!");
+    error_publisher_->flushAndShutdown();
   }
 
   // | --------------------- tf transformer --------------------- |
@@ -582,12 +590,14 @@ void HwApiManager::initialize() {
   catch (pluginlib::CreateClassException &ex1) {
     RCLCPP_ERROR(node_->get_logger(), "CreateClassException for the plugin '%s'", _plugin_address_.c_str());
     RCLCPP_ERROR(node_->get_logger(), "Error: %s", ex1.what());
-    rclcpp::shutdown();
+    error_publisher_->addOneshotError("Plugin could not be created, see the error message for details:" + std::string(ex1.what()));
+    error_publisher_->flushAndShutdown();
   }
   catch (pluginlib::PluginlibException &ex) {
     RCLCPP_ERROR(node_->get_logger(), "PluginlibException for the plugin '%s'", _plugin_address_.c_str());
     RCLCPP_ERROR(node_->get_logger(), "Error: %s", ex.what());
-    rclcpp::shutdown();
+    error_publisher_->addOneshotError("Pluginlib error, see the error message for details:" + std::string(ex.what()));
+    error_publisher_->flushAndShutdown();
   }
 
   // | ------------------ initialize the plugin ----------------- |

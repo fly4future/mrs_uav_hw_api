@@ -17,6 +17,7 @@ from launch.substitutions import (
 
 from ament_index_python.packages import get_package_share_directory
 
+
 def generate_launch_description():
 
     ld = launch.LaunchDescription()
@@ -24,7 +25,7 @@ def generate_launch_description():
     pkg_name = "mrs_uav_hw_api"
 
     this_pkg_path = get_package_share_directory(pkg_name)
-    namespace='hw_api'
+    namespace = 'hw_api'
 
     # #{ custom_config
 
@@ -44,9 +45,10 @@ def generate_launch_description():
     #     custom_config == "/<path>" => custom_config: "/<path>"
     #     custom_config == "<path>" => custom_config: "$(pwd)/<path>"
     custom_config = IfElseSubstitution(
-            condition=PythonExpression(['"', custom_config, '" != "" and ', 'not "', custom_config, '".startswith("/")']),
-            if_value=PathJoinSubstitution([EnvironmentVariable('PWD'), custom_config]),
-            else_value=custom_config
+        condition=PythonExpression(['"', custom_config, '" != "" and ',
+                                   'not "', custom_config, '".startswith("/")']),
+        if_value=PathJoinSubstitution([EnvironmentVariable('PWD'), custom_config]),
+        else_value=custom_config
     )
 
     # #} end of custom_config
@@ -74,7 +76,7 @@ def generate_launch_description():
     ld.add_action(ComposableNodeContainer(
 
         namespace=uav_name,
-        name=namespace+'_container',
+        name=namespace + '_container',
         package='rclcpp_components',
         executable='component_container_mt',
         output="screen",
@@ -92,6 +94,10 @@ def generate_launch_description():
                     {"topic_prefix": ["/", uav_name]},
                     {'configs': configs},
                     {'custom_config': custom_config},
+                ],
+                remappings=[
+                    #publishers
+                    ("~/errors", "errors"),
                 ],
             )
 
